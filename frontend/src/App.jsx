@@ -4,49 +4,57 @@ import {
 } from "lucide-react";
 import { socket } from "./socket";
 
-function initials(name = "?") {
+function initials(name = "?") {//Ye function username ka first character return karta hai. UI mein user avatar ke andar first letter show karne ke liye use hota hai.
   return name.trim().charAt(0).toUpperCase() || "?";
 }
-
+//Backend message ke saath time send karta hai:
 function formatTime(iso) {
-  return new Date(iso).toLocaleTimeString([], {
+  return new Date(iso).toLocaleTimeString([], { //Is timestamp ko JavaScript Date object mein convert karta hai. Readable local time banata hai.
     hour: "2-digit",
     minute: "2-digit"
   });
 }
 
 export default function App() {
-  const [usernameInput, setUsernameInput] = useState("");
-  const [roomInput, setRoomInput] = useState("general");
+
+// usernameInput	Join form mein typed username
+// username	Successfully joined user ka username
+// roomInput	Form mein entered room ID
+// roomId	Successfully joined room ID
+  const [usernameInput, setUsernameInput] = useState("");//Ye login/join screen par username input ko control karta hai. user types - Rakesh, usernameInput = "Rakesh";
+  const [roomInput, setRoomInput] = useState("general");//Room ID ka input store hota hai.
   const [username, setUsername] = useState("");
   const [roomId, setRoomId] = useState("");
-  const [joined, setJoined] = useState(false);
-  const [connected, setConnected] = useState(socket.connected);
-  const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [notices, setNotices] = useState([]);
-  const [typingUsers, setTypingUsers] = useState([]);
-  const [onlineCount, setOnlineCount] = useState(0);
-  const bottomRef = useRef(null);
-  const typingTimeoutRef = useRef(null);
-  const isTypingRef = useRef(false);
-
-  useEffect(() => {
+  const [joined, setJoined] = useState(false); //Ye batata hai ki user chat room mein join hua hai ya nahi. intially false h join successful hone ke baad - true
+  const [connected, setConnected] = useState(socket.connected);//Ye Socket.IO connection status store karta hai. 
+  const [message, setMessage] = useState(""); //User jo message input mein type kar raha hai, wo is state mein store hoga.
+  const [messages, setMessages] = useState([]); //Ye received messages store karta hai.
+  const [notices, setNotices] = useState([]); //Ye join/leave notifications store karta hai.
+  const [typingUsers, setTypingUsers] = useState([]); //Ye un users ke usernames store karta hai jo currently typing kar rahe hain.
+  const [onlineCount, setOnlineCount] = useState(0); //Current room mein kitne users connected hain, wo store karta hai.
+  const bottomRef = useRef(null); //Jab new message aata hai, hum automatically bottom par scroll karenge.
+  const typingTimeoutRef = useRef(null); //Typing indicator ko automatically stop karne ke liye timer ID store karta hai.
+  const isTypingRef = useRef(false); //Track karta hai ki current user typing state mein hai ya nahi.
+  //Because useRef ki value change karne se React component re-render nahi hota.
+//Humein yahan har change par UI re-render karne ki zaroorat nahi hai
+  useEffect(() => { //useEffect component render hone ke baad execute hota hai.
     const onConnect = () => setConnected(true);
     const onDisconnect = () => {
       setConnected(false);
       setTypingUsers([]);
     };
-    const onChatMessage = (data) => setMessages((old) => [...old, data]);
+    const onChatMessage = (data) => setMessages((old) => [...old, data]); //Matlab purane messages preserve rahenge aur new message end mein add hoga.
     const onRoomNotice = (data) => setNotices((old) => [...old, data]);
     const onTyping = ({ username: name }) => {
       setTypingUsers((old) => old.includes(name) ? old : [...old, name]);
     };
     const onStopTyping = ({ username: name }) => {
-      setTypingUsers((old) => old.filter((item) => item !== name));
+      setTypingUsers((old) => old.filter((item) => item !== name)); // sujoy ne typinf stop krdi - Matlab Sujoy typing list se remove ho gaya.
     };
     const onRoomInfo = ({ onlineCount: count }) => setOnlineCount(count);
-
+    //Abhi tak humne functions define kiye the.
+//Ab inhe actual Socket.IO events ke saath connect karenge.
+  //Jab bhi backend "chatMessage" event bhejega, onChatMessage function execute hoga. 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("chatMessage", onChatMessage);
@@ -56,6 +64,7 @@ export default function App() {
     socket.on("roomInfo", onRoomInfo);
 
     return () => {
+      //socket.off() - Listener remove karta hai.
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("chatMessage", onChatMessage);
@@ -64,14 +73,16 @@ export default function App() {
       socket.off("stopTyping", onStopTyping);
       socket.off("roomInfo", onRoomInfo);
       clearTimeout(typingTimeoutRef.current);
-      socket.disconnect();
+      socket.disconnect(); //Socket.IO connection close kar deta hai.
     };
   }, []);
 
+//Auto scroll functionality - Chat automatically bottom par scroll ho gayi.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, notices, typingUsers]);
+  }, [messages, notices, typingUsers]); //Jab bhi messages, notices, ya typingUsers change hoga, ye effect execute hoga aur chat bottom par scroll ho jayegi.
 
+  //Frontend se backend ko connect karna
   const joinRoom = (event) => {
     event.preventDefault();
     const cleanName = usernameInput.trim();
